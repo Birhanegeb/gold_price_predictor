@@ -1,4 +1,4 @@
-# Gold Price Direction Predictor — Automated ETL & ML Pipeline with Apache Airflow
+# Gold Price Direction Predictor - Automated ETL & ML Pipeline with Apache Airflow
 
 > Predicts whether gold prices will go **up or down** the next trading day by combining financial market data with real-time war/conflict news sentiment analysis — fully automated with Apache Airflow.
 
