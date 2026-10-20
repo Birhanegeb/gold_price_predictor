@@ -28,6 +28,14 @@ def safe_sentiment(text: str) -> float:
     return TextBlob(text).sentiment.polarity
 
 
+def add_next_day_target(df: pd.DataFrame) -> pd.DataFrame:
+    """Label each row by the next close and exclude rows without a next day."""
+    next_close = df["close"].shift(-1)
+    result = df.copy()
+    result["target"] = next_close.gt(result["close"]).where(next_close.notna()).astype("Int64")
+    return result.dropna(subset=["target"])
+
+
 def compute_sentiment_and_merge():
     """
     1. Load gold_prices.csv  (data/raw/)
@@ -82,8 +90,7 @@ def compute_sentiment_and_merge():
     # ── Create target column ───────────────────────────────────────────
     # IMPORTANT: sort by date first — never shuffle time-series data
     merged = merged.sort_values("date").reset_index(drop=True)
-    merged["target"] = (merged["close"].shift(-1) > merged["close"]).astype("Int64")
-    merged = merged.dropna(subset=["target"])  # last row has no next-day price
+    merged = add_next_day_target(merged)
 
     if len(merged) < 10:
         raise ValueError(

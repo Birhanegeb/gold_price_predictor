@@ -23,11 +23,20 @@ from config import (
 )
 
 
+def chronological_train_test_split(df: pd.DataFrame):
+    """Split rows by date, keeping the latest TEST_SIZE fraction for evaluation."""
+    if "date" not in df.columns:
+        raise ValueError("Training data must include a 'date' column for chronological splitting.")
+
+    ordered = df.assign(date=pd.to_datetime(df["date"], errors="raise"))
+    ordered = ordered.sort_values("date").reset_index(drop=True)
+    return train_test_split(ordered, test_size=TEST_SIZE, shuffle=False)
+
+
 def train_model():
     """
     1. Load data/processed/training_data.csv
-    2. Split into train/test — shuffle=False preserves time order
-       (shuffling would leak future prices into training = fake accuracy)
+    2. Split chronologically, holding out the latest 20% for testing
     3. Train a Random Forest classifier
     4. Log accuracy and classification report
     5. Save trained model to models/gold_model.pkl
@@ -44,26 +53,18 @@ def train_model():
     df = pd.read_csv(TRAINING_CSV)
     logging.info(f"Loaded {len(df)} training rows")
 
-    # Confirm all required feature columns exist
-    missing = [col for col in FEATURE_COLUMNS if col not in df.columns]
+    required_columns = [*FEATURE_COLUMNS, "target", "date"]
+    missing = [col for col in required_columns if col not in df.columns]
     if missing:
         raise ValueError(
             f"Missing columns in training data: {missing}\n"
-            f"Expected: {FEATURE_COLUMNS}"
+            f"Expected at minimum: {required_columns}"
         )
 
-    X = df[FEATURE_COLUMNS]
-    y = df["target"]
-
     # ── Train / test split ─────────────────────────────────────────────
-    # shuffle=False is CRITICAL — this is time-series data.
-    # Shuffling would allow the model to train on future dates,
-    # which gives artificially high accuracy and is not honest evaluation.
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
-        test_size=TEST_SIZE,
-        shuffle=False,
-    )
+    train_df, test_df = chronological_train_test_split(df)
+    X_train, y_train = train_df[FEATURE_COLUMNS], train_df["target"]
+    X_test, y_test = test_df[FEATURE_COLUMNS], test_df["target"]
     logging.info(f"Train: {len(X_train)} rows | Test: {len(X_test)} rows")
 
     # ── Train ──────────────────────────────────────────────────────────
@@ -80,7 +81,9 @@ def train_model():
     logging.info(f"✅ Test accuracy: {accuracy:.4f}")
     logging.info("\n" + classification_report(
         y_test, preds,
-        target_names=["Down (0)", "Up (1)"]
+        labels=[0, 1],
+        target_names=["Down (0)", "Up (1)"],
+        zero_division=0,
     ))
 
     if accuracy < 0.50:

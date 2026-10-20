@@ -1,12 +1,22 @@
-# Gold Price Direction Predictor - Automated ETL & ML Pipeline with Apache Airflow
+# Gold Price Direction Predictor - Real-Data ML Pipeline with Apache Airflow
 
-> Predicts whether gold prices will go **up or down** the next trading day by combining financial market data with real-time war/conflict news sentiment analysis — fully automated with Apache Airflow.
+> An end-to-end, real-data machine-learning model that predicts whether gold prices will go **up or down** the next trading day using market data and war/conflict news sentiment, orchestrated with Apache Airflow.
 
 ---
 
 ## Overview
 
-This project builds a production-style **ETL + Machine Learning pipeline** that runs on a weekly schedule. It fetches gold futures prices from Yahoo Finance, collects war-related news from NYT RSS feeds, computes sentiment scores, and retrains a Random Forest classifier automatically every week.
+It demonstrates a complete **data engineering and machine-learning workflow** using live external data rather than a fixed toy dataset. Apache Airflow orchestrates the pipeline: it fetches gold futures prices from Yahoo Finance and war-related articles from NYT RSS feeds, prepares and joins the data, computes sentiment features, then trains and evaluates a Random Forest classifier.
+
+### What functionality is included
+
+- Building an Airflow DAG with independent data-fetch tasks and dependent processing/training tasks.
+- Collecting and cleaning data from real-world APIs and RSS feeds.
+- Creating features and next-day labels from chronological market data.
+- Evaluating on a later, held-out time period instead of scoring the training rows.
+- Extending the pipeline with historical news, model tracking, monitoring, or deployment.
+
+Market and news sources can change availability, coverage, or terms. The current RSS feeds provide limited recent news, so historical sentiment coverage is sparse; see the limitation below. Treat model results as educational experiments, not investment advice.
 
 ```
 fetch_gold_prices ──┐
@@ -56,7 +66,8 @@ gold-price-predictor/
 │   └── analysis.ipynb             # Exploratory data analysis
 │
 ├── tests/
-│   └── test_model.py              # Load model and report accuracy
+│   ├── test_model.py              # CLI entry point for held-out evaluation
+│   └── test_training_data.py      # Tests for time split and next-day labels
 │
 ├── config.py                      # All settings: paths, symbols, keywords
 ├── requirements.txt
@@ -86,7 +97,7 @@ Runs **TextBlob polarity analysis** on each article title. Aggregates daily sent
 Saves to `data/processed/training_data.csv`.
 
 ### Task 4 — `train_model`
-Trains a **Random Forest classifier** on three features: `close`, `sentiment_mean`, `news_count`. Uses `shuffle=False` to preserve time order and prevent data leakage. Saves trained model to `models/gold_model.pkl`.
+Trains a **Random Forest classifier** on three features: `close`, `sentiment_mean`, `news_count`. It sorts rows by date, trains on the earliest 80%, and evaluates on the latest 20% without shuffling. The saved model is fitted only on the training portion.
 
 ---
 
@@ -94,7 +105,7 @@ Trains a **Random Forest classifier** on three features: `close`, `sentiment_mea
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/gold-price-predictor.git
+git clone https://github.com/Birhanegeb/gold-price-predictor.git
 cd gold-price-predictor
 ```
 
@@ -146,25 +157,28 @@ python tests/test_model.py \
   --data  data/processed/training_data.csv
 ```
 
-Example output:
-```
-✅ Model loaded: models/gold_model.pkl
-✅ Data loaded: 314 rows
+The evaluation command applies the same chronological split as training and scores only the latest 20% of the rows. These held-out dates are not used to fit the model.
 
+Example output (your results will vary with the fetched data):
+```text
 ==================================================
-        MODEL EVALUATION RESULTS
+   HELD-OUT MODEL EVALUATION
 ==================================================
-  Rows evaluated : 314
+  Evaluation set : latest chronological 20%
+  Held-out rows  : number depends on dataset size
   Features used  : ['close', 'sentiment_mean', 'news_count']
-  Accuracy       : 0.5714  (57.1%)
+  Accuracy       : depends on fetched data
 ==================================================
 ```
 
----
+Run the unit tests for the chronological split and target creation:
+```bash
+python -m unittest discover -s tests -p 'test_*.py'
+```
 
 ## Pipeline Schedule
 
-The DAG runs **every Sunday at midnight** (`@weekly`). Each run:
+The DAG runs every Sunday at midnight (`@weekly`). Each run:
 1. Fetches all gold prices from `2024-01-01` to today (full refresh)
 2. Fetches the latest war news from NYT RSS
 3. Retrains the model on the most up-to-date data
@@ -176,8 +190,8 @@ For local development, use **▶ Trigger DAG** in the Airflow UI to run manually
 
 ## Design Decisions
 
-**Why `shuffle=False` in train/test split?**
-This is a time-series problem. Shuffling would let the model train on future dates when evaluating past ones, giving fake high accuracy. Keeping chronological order gives an honest result.
+**Why a chronological train/test split?**
+This is a time-series problem. The model trains on earlier dates and evaluation uses only later dates. Shuffling would let the model train on future dates when evaluating past ones, giving fake high accuracy.
 
 **Why Random Forest?**
 Handles small datasets (~300 rows) well, robust to noisy features, requires minimal tuning.
@@ -191,4 +205,7 @@ NYT RSS only returns recent articles so most historical rows have `sentiment_mea
 `yfinance` — free, no API key required. Symbol: `GC=F` (gold futures)
 
 ## License
-For educational use. News data sourced from NYT RSS — see [NYT Terms of Use](https://help.nytimes.com/hc/en-us/articles/115014893428).
+The project code is available under the [MIT License](./LICENSE), so you may use, modify, and distribute it under that license's terms. The license applies to this repository's code and documentation, not to data or services provided by Yahoo Finance, The New York Times, or other third parties. Check those providers' terms before using or redistributing their data:
+
+- [NYT Terms of Use](https://help.nytimes.com/hc/en-us/articles/115014893428)
+- [Yahoo Terms of Service](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html)

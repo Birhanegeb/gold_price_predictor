@@ -4,7 +4,7 @@
 #
 # Usage:
 #   python tests/test_model.py
-#   python tests/test_model.py --model models/gold_model.pkl --data data/processed
+#   python tests/test_model.py --model models/gold_model.pkl --data data/processed/training_data.csv
 # =============================================================================
 
 import argparse
@@ -17,7 +17,8 @@ from sklearn.metrics import accuracy_score, classification_report
 
 # Add project root to path so config.py can be found
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import FEATURE_COLUMNS, MODEL_PKL, TRAINING_CSV
+from config import FEATURE_COLUMNS, MODEL_PKL, TEST_SIZE, TRAINING_CSV
+from tasks.train_model import chronological_train_test_split
 
 
 def load_model(model_path: str):
@@ -60,10 +61,13 @@ def validate_columns(df: pd.DataFrame):
     if "target" not in df.columns:
         print("❌ Column 'target' not found in training_data.csv")
         sys.exit(1)
+    if "date" not in df.columns:
+        print("❌ Column 'date' not found; chronological evaluation requires dates.")
+        sys.exit(1)
 
 
 def evaluate(model, df: pd.DataFrame):
-    """Run predictions and print accuracy + full classification report."""
+    """Run predictions on a held-out dataset and print accuracy + report."""
     X        = df[FEATURE_COLUMNS]
     y        = df["target"]
     preds    = model.predict(X)
@@ -71,14 +75,21 @@ def evaluate(model, df: pd.DataFrame):
 
     print()
     print("=" * 50)
-    print("        MODEL EVALUATION RESULTS")
+    print("   HELD-OUT MODEL EVALUATION")
     print("=" * 50)
-    print(f"  Rows evaluated : {len(df)}")
+    print(f"  Evaluation set : latest chronological {TEST_SIZE:.0%}")
+    print(f"  Held-out rows  : {len(df)}")
     print(f"  Features used  : {FEATURE_COLUMNS}")
     print(f"  Accuracy       : {accuracy:.4f}  ({accuracy * 100:.1f}%)")
     print("=" * 50)
     print()
-    print(classification_report(y, preds, target_names=["Down (0)", "Up (1)"]))
+    print(classification_report(
+        y,
+        preds,
+        labels=[0, 1],
+        target_names=["Down (0)", "Up (1)"],
+        zero_division=0,
+    ))
 
     # Plain-language interpretation
     if accuracy >= 0.60:
@@ -88,7 +99,7 @@ def evaluate(model, df: pd.DataFrame):
         print("   Tip: try adding lagged prices or moving average features.")
     else:
         print("❌ Below 50% — worse than random guessing.")
-        print("   Tip: confirm shuffle=False was used in train/test split.")
+        print("   Tip: inspect the chronological split and target labels.")
 
 
 def main():
@@ -108,7 +119,9 @@ def main():
     model = load_model(args.model)
     df    = load_data(args.data)
     validate_columns(df)
-    evaluate(model, df)
+    train_df, test_df = chronological_train_test_split(df)
+    print(f"✅ Chronological split: {len(train_df)} training rows | {len(test_df)} held-out test rows")
+    evaluate(model, test_df)
 
 
 if __name__ == "__main__":
