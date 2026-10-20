@@ -8,6 +8,8 @@
 
 It demonstrates a complete **data engineering and machine-learning workflow** using live external data rather than a fixed toy dataset. Apache Airflow orchestrates the pipeline: it fetches gold futures prices from Yahoo Finance and war-related articles from NYT RSS feeds, prepares and joins the data, computes sentiment features, then trains and evaluates a Random Forest classifier.
 
+Need a hands-on Apache Airflow or machine-learning project? You can clone this repository, run it with real external data, and adapt or modify the code for learning and portfolio projects under the MIT License. See [LICENSE](./LICENSE) for the terms.
+
 ### What functionality is included
 
 - Building an Airflow DAG with independent data-fetch tasks and dependent processing/training tasks.
@@ -204,8 +206,13 @@ NYT RSS only returns recent articles so most historical rows have `sentiment_mea
 ## Gold API Used
 `yfinance` — free, no API key required. Symbol: `GC=F` (gold futures)
 
-## License
-The project code is available under the [MIT License](./LICENSE), so you may use, modify, and distribute it under that license's terms. The license applies to this repository's code and documentation, not to data or services provided by Yahoo Finance, The New York Times, or other third parties. Check those providers' terms before using or redistributing their data:
+## Data Sources
 
-- [NYT Terms of Use](https://help.nytimes.com/hc/en-us/articles/115014893428)
-- [Yahoo Terms of Service](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html)
+- Gold futures prices (`GC=F`): [Yahoo Finance](https://finance.yahoo.com/quote/GC=F/) via the `yfinance` Python package.
+- War/conflict news: [NYT World RSS feed](https://rss.nytimes.com/services/xml/rss/nyt/World.xml) and [NYT Home Page RSS feed](https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml).
+
+The pipeline retrieves data from these services at runtime; it does not include or redistribute their datasets. Data availability, usage, and redistribution are governed by the providers' terms. Review the [NYT Terms of Use](https://help.nytimes.com/hc/en-us/articles/115014893428) and [Yahoo Terms of Service](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html) before using or redistributing source data.
+
+## License
+
+This repository's code and documentation are licensed under the [MIT License](./LICENSE). This license does not cover third-party data or services.
